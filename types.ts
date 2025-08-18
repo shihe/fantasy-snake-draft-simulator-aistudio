@@ -7,4 +7,4 @@ export interface Player {
 
 export type DraftBoardData = Record<string, (Player | null)[]>;
 
-export type DataSource = 'Sleeper' | 'Yahoo' | 'ESPN' | 'Custom';
+export type DataSource = 'Sleeper PPR' | 'Yahoo Half' | 'ESPN Half' | 'Custom';

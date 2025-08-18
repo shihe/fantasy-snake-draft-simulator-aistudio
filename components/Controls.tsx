@@ -12,7 +12,7 @@ interface ControlsProps {
 }
 
 const TEAM_OPTIONS = [8, 10, 12, 14];
-const DATA_SOURCES: DataSource[] = ['Sleeper', 'Yahoo', 'ESPN', 'Custom'];
+const DATA_SOURCES: DataSource[] = ['Sleeper PPR', 'Yahoo Half', 'ESPN Half', 'Custom'];
 
 const Controls: React.FC<ControlsProps> = ({
   rawText,

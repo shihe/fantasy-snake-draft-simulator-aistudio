@@ -108,7 +108,7 @@ const App: React.FC = () => {
   });
 
   const [dataSource, setDataSource] = useState<DataSource>(() => {
-    return localStorage.getItem('customPlayerRankings') ? 'Custom' : 'Sleeper';
+    return localStorage.getItem('customPlayerRankings') ? 'Custom' : 'Sleeper PPR';
   });
 
   useEffect(() => {
@@ -162,13 +162,13 @@ const App: React.FC = () => {
   const handleDataSourceChange = (source: DataSource) => {
     setDataSource(source);
     switch (source) {
-      case 'Sleeper':
+      case 'Sleeper PPR':
         setRawText(SLEEPER_PLAYER_LIST);
         break;
-      case 'Yahoo':
+      case 'Yahoo Half':
         setRawText(YAHOO_PLAYER_LIST);
         break;
-      case 'ESPN':
+      case 'ESPN Half':
         setRawText(ESPN_PLAYER_LIST);
         break;
       case 'Custom':
