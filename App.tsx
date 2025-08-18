@@ -211,13 +211,15 @@ const App: React.FC = () => {
   };
 
   const handleMarkUntilPicked = (playerRank: number) => {
-    const newPicked = new Set<number>();
-    players.forEach(p => {
-      if (p.rank <= playerRank) {
-        newPicked.add(p.rank);
-      }
+    setPickedPlayers(prevPicked => {
+      const newPicked = new Set(prevPicked);
+      players.forEach(p => {
+        if (p.rank <= playerRank) {
+          newPicked.add(p.rank);
+        }
+      });
+      return newPicked;
     });
-    setPickedPlayers(newPicked);
   };
   
   const handleResetDraft = () => {
