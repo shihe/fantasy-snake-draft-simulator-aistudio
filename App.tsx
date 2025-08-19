@@ -177,44 +177,35 @@ const App: React.FC = () => {
     }
   };
   
-  const handleTogglePlayerPicked = (playerRank: number) => {
+  const handleTogglePlayerPicked = (overallPick: number) => {
     setPickedPlayers(prevPicked => {
       const newPicked = new Set(prevPicked);
-      if (newPicked.has(playerRank)) {
-        newPicked.delete(playerRank);
+      if (newPicked.has(overallPick)) {
+        newPicked.delete(overallPick);
       } else {
-        newPicked.add(playerRank);
+        newPicked.add(overallPick);
       }
       return newPicked;
     });
   };
   
-  const handleTogglePlayerHighlight = (playerRank: number) => {
+  const handleTogglePlayerHighlight = (overallPick: number) => {
     const lines = rawText.split('\n');
-    const playerLineIndex = lines.findIndex(line => {
-      // Find line that starts with the rank, ignoring any existing highlight marker
-      const trimmedLine = line.trim().replace(/\s*\*\s*$/, '');
-      const rankMatch = trimmedLine.match(/^\d+/);
-      return rankMatch ? parseInt(rankMatch[0], 10) === playerRank : false;
-    });
-
-    if (playerLineIndex !== -1) {
-      let line = lines[playerLineIndex];
-      if (line.trim().endsWith('*')) {
-        lines[playerLineIndex] = line.trim().slice(0, -1).trim();
-      } else {
-        lines[playerLineIndex] = `${line.trim()} *`;
-      }
-      const newRawText = lines.join('\n');
-      handleRawTextChange(newRawText);
+    let line = lines[overallPick-1];
+    if (line.trim().endsWith('*')) {
+      lines[overallPick-1] = line.trim().slice(0, -1).trim();
+    } else {
+      lines[overallPick-1] = `${line.trim()} *`;
     }
+    const newRawText = lines.join('\n');
+    handleRawTextChange(newRawText);
   };
 
-  const handleMarkUntilPicked = (playerRank: number) => {
+  const handleMarkUntilPicked = (overallPick: number) => {
     setPickedPlayers(prevPicked => {
       const newPicked = new Set(prevPicked);
       players.forEach(p => {
-        if (p.rank <= playerRank) {
+        if (p.rank <= overallPick) {
           newPicked.add(p.rank);
         }
       });

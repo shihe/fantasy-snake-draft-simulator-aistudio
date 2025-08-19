@@ -69,21 +69,20 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, overallPick, round, isP
   return (
     <div 
         className={`relative p-2 rounded-md h-28 flex flex-col justify-between text-left shadow-lg border border-gray-700/50 border-l-4 ${roundColorClass} ${positionColors.border} cursor-pointer transform transition-all duration-300 ease-in-out ${pickedClasses} ${highlightClasses}`}
-        onClick={() => onTogglePicked(player.rank)}
+        onClick={() => onTogglePicked(overallPick)}
         onContextMenu={(e) => {
             e.preventDefault();
-            onToggleHighlight(player.rank);
+            onToggleHighlight(overallPick);
         }}
         onAuxClick={(e) => {
             if (e.button === 1) { // Middle mouse button
                 e.preventDefault();
-                onMarkUntilPicked(player.rank);
+                onMarkUntilPicked(overallPick);
             }
         }}
         role="button"
         aria-pressed={isPicked}
         tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onTogglePicked(player.rank) }}
         aria-label={`Pick ${player.name}, Rank ${player.rank}, Position ${player.position}. Click to toggle drafted status. Right-click to toggle highlight. Middle-click to mark all previous players as drafted.`}
     >
       <div>
@@ -209,7 +208,7 @@ const DraftBoard: React.FC<DraftBoardProps> = ({ boardData, numTeams, pickedPlay
                         player={player} 
                         overallPick={overallPick} 
                         round={roundIndex}
-                        isPicked={pickedPlayers.has(player.rank)}
+                        isPicked={pickedPlayers.has(overallPick)}
                         onTogglePicked={onTogglePlayerPicked}
                         isHighlighted={player.isHighlighted}
                         onToggleHighlight={onTogglePlayerHighlight}
