@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Player, DraftBoardData } from '../types';
 
 interface DraftBoardProps {
@@ -25,6 +25,27 @@ const getPositionColorClasses = (position: string): { border: string; text: stri
   }
 };
 
+const splitName = (fullName: string): { firstName: string; lastName: string } => {
+  // Trim whitespace from the beginning and end of the full name
+  const trimmedName = fullName.trim();
+
+  // Split the name by spaces into an array of words
+  const nameParts = trimmedName.split(' ');
+
+  // Handle cases with only one part (e.g., "Cher")
+  if (nameParts.length === 1) {
+    return { firstName: nameParts[0], lastName: '' };
+  }
+
+  // The last part of the array is typically the last name
+  const lastName = nameParts[nameParts.length - 1];
+
+  // The remaining parts (everything except the last) form the first name (and any middle names)
+  const firstName = nameParts.slice(0, nameParts.length - 1).join(' ');
+
+  return { firstName, lastName };
+}
+
 interface PlayerCardProps {
     player: Player;
     overallPick: number;
@@ -34,15 +55,17 @@ interface PlayerCardProps {
     isHighlighted: boolean;
     onToggleHighlight: (rank: number) => void;
     onMarkUntilPicked: (rank: number) => void;
+    isMobile: boolean;
 }
 
-const PlayerCard: React.FC<PlayerCardProps> = ({ player, overallPick, round, isPicked, onTogglePicked, isHighlighted, onToggleHighlight, onMarkUntilPicked }) => {
+const PlayerCard: React.FC<PlayerCardProps> = ({ player, overallPick, round, isPicked, onTogglePicked, isHighlighted, onToggleHighlight, onMarkUntilPicked, isMobile }) => {
   const roundColorClass = round % 2 === 0 ? 'bg-gray-800' : 'bg-gray-800/60';
   const positionColors = getPositionColorClasses(player.position);
   const pickedClasses = isPicked ? 'opacity-40 filter grayscale' : 'hover:bg-gray-700/80 hover:scale-[1.02]';
   const highlightClasses = isHighlighted ? 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-gray-900' : '';
   const isForwardRound = round % 2 === 0;
-  
+  const { firstName, lastName } = splitName(player.name);
+
   return (
     <div 
         className={`relative p-2 rounded-md h-28 flex flex-col justify-between text-left shadow-lg border border-gray-700/50 border-l-4 ${roundColorClass} ${positionColors.border} cursor-pointer transform transition-all duration-300 ease-in-out ${pickedClasses} ${highlightClasses}`}
@@ -65,15 +88,25 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, overallPick, round, isP
     >
       <div>
         <div className="flex justify-between items-start gap-2">
-          <p className={`font-bold text-sm text-white break-words ${isPicked ? 'line-through' : ''}`} title={player.name}>
-            {player.name}
+          <p className={`font-bold text-sm text-white truncate ${isPicked ? 'line-through' : ''}`} title={player.name}>
+            {firstName}
           </p>
+          <div className="hidden lg:block">
+            <p className={`text-xs font-mono font-bold flex-shrink-0 ${positionColors.text}`}>
+              {player.position}
+            </p>
+          </div>
+        </div>
+        <p className={`font-bold text-sm text-white truncate ${isPicked ? 'line-through' : ''}`} title={player.name}>
+          {lastName}
+        </p>
+        <div className="block lg:hidden">
           <p className={`text-xs font-mono font-bold flex-shrink-0 ${positionColors.text}`}>
             {player.position}
           </p>
         </div>
         <p className="text-xs text-gray-400">
-          (Rank: {player.rank})
+          { isMobile ? `(Rk: ${player.rank})` : `(Rank: ${player.rank})` } 
         </p>
       </div>
       <div className="flex justify-between items-center mt-1">
@@ -88,7 +121,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, overallPick, round, isP
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
         </svg>
         <p className="text-xs text-gray-500 font-mono">
-            Pick {overallPick}
+            { isMobile ? `${overallPick}` : `Pick ${overallPick}` }
         </p>
       </div>
     </div>
@@ -101,6 +134,22 @@ const EmptyCard: React.FC<{ round: number }> = ({ round }) => {
 };
 
 const DraftBoard: React.FC<DraftBoardProps> = ({ boardData, numTeams, pickedPlayers, onTogglePlayerPicked, onTogglePlayerHighlight, onMarkUntilPicked }) => {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 1024px)'); // Tailwind's 'lg' breakpoint
+    const handleMediaQueryChange = () => {
+      setIsMobile(mediaQuery.matches);
+    };
+
+    handleMediaQueryChange(); // Set initial value
+    mediaQuery.addEventListener('change', handleMediaQueryChange);
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleMediaQueryChange);
+    };
+  }, []);
+  
   const teamKeys = Object.keys(boardData);
   if (teamKeys.length === 0) {
     return (
@@ -113,8 +162,11 @@ const DraftBoard: React.FC<DraftBoardProps> = ({ boardData, numTeams, pickedPlay
   const numRounds = boardData[teamKeys[0]]?.length || 0;
   
   const getStyle = (teams: number) => {
-      // Add an 'auto' column for the round numbers
-      return { gridTemplateColumns: `auto repeat(${teams}, minmax(0, 1fr))` };
+    // On mobile screens, enforce a minimum width for player cards to prevent them
+    // from becoming unreadably narrow. This enables horizontal scrolling.
+    const minPlayerCardWidth = isMobile ? '5rem' : 0;
+
+    return { gridTemplateColumns: `auto repeat(${teams}, minmax(${minPlayerCardWidth}, 1fr))` };
   };
 
   return (
@@ -136,9 +188,11 @@ const DraftBoard: React.FC<DraftBoardProps> = ({ boardData, numTeams, pickedPlay
             <React.Fragment key={roundIndex}>
               {/* Round Number Cell */}
               <div className="flex items-center justify-center sticky left-0 bg-gray-900 z-20 h-full pr-2">
-                <div className="text-center font-bold text-gray-500 text-sm">
-                  <p className="leading-none tracking-wider">RND</p>
-                  <p className="text-lg leading-tight text-gray-300">{roundIndex + 1}</p>
+                <div className="hidden lg:block">
+                  <div className="text-center font-bold text-gray-500 text-sm">
+                    <p className="leading-none tracking-wider">RND</p>
+                    <p className="text-lg leading-tight text-gray-300">{roundIndex + 1}</p>
+                  </div>
                 </div>
               </div>
               
@@ -160,6 +214,7 @@ const DraftBoard: React.FC<DraftBoardProps> = ({ boardData, numTeams, pickedPlay
                         isHighlighted={player.isHighlighted}
                         onToggleHighlight={onTogglePlayerHighlight}
                         onMarkUntilPicked={onMarkUntilPicked}
+                        isMobile={isMobile}
                       />
                     ) : (
                       <EmptyCard round={roundIndex} />
