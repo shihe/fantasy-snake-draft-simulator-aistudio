@@ -3,7 +3,37 @@ import React, { useState, useMemo, useEffect } from 'react';
 import type { Player, DraftBoardData, DataSource } from './types';
 import Controls from './components/Controls';
 import DraftBoard from './components/DraftBoard';
-import { SLEEPER_PLAYER_LIST, YAHOO_PLAYER_LIST, ESPN_PLAYER_LIST } from './constants';
+
+const fetchSleeperAdp = async (source: DataSource): Promise<string> => {
+  try {
+    const year = new Date().getFullYear();
+    const res = await fetch(`https://api.sleeper.app/projections/nfl/${year}?season_type=regular`);
+    if (!res.ok) throw new Error('Failed to fetch from Sleeper');
+    const data = await res.json();
+    
+    let adpKey = 'adp_ppr';
+    if (source === 'Sleeper Standard') adpKey = 'adp_std';
+    else if (source === 'Sleeper Half PPR') adpKey = 'adp_half_ppr';
+    else if (source === 'Sleeper Superflex') adpKey = 'adp_2qb';
+
+    const ranked = data
+      .filter((p: any) => p.stats && p.stats[adpKey] && p.stats[adpKey] < 999)
+      .sort((a: any, b: any) => a.stats[adpKey] - b.stats[adpKey]);
+
+    const lines = ranked.map((p: any, index: number) => {
+      const pos = p.player.position || p.player.fantasy_positions?.[0] || 'UNK';
+      const team = p.player.team || 'FA';
+      const name = `${p.player.first_name} ${p.player.last_name}`.trim();
+      return `${index + 1}\t${pos}\t${name}\t${team}\t${p.stats[adpKey]}`;
+    });
+    
+    // Add header
+    return `Rank\tPosition\tPlayer\tTeam\tADP\n` + lines.join('\n');
+  } catch (err) {
+    console.error(err);
+    return 'Error loading rankings. Try custom.';
+  }
+};
 
 const parsePlayerText = (text: string): { players: Player[]; error: string | null } => {
   const players: Player[] = [];
@@ -18,21 +48,64 @@ const parsePlayerText = (text: string): { players: Player[]; error: string | nul
       processedLine = processedLine.slice(0, -1).trim();
     }
     
-    const parts = processedLine.split(/\s+/);
-    
-    if (parts.length < 3) {
-      return { players: [], error: `Malformed line detected. Each line must have rank, name, and position. Problem line: "${line}"` };
+    if (processedLine.toLowerCase().startsWith('adp') || processedLine.toLowerCase().startsWith('rank')) {
+      continue;
     }
     
-    const rank = parseInt(parts[0], 10);
-    const position = parts[parts.length - 1];
-    const name = parts.slice(1, -1).join(' ');
+    let rank: number, name: string, position: string, team: string | undefined;
+
+    let tabParts = processedLine.split('\t').map(s => s.trim());
+    
+    if (tabParts.length >= 3 && processedLine.includes('\t')) {
+      const parsedRank = parseInt(tabParts[0], 10);
+      if (isNaN(parsedRank)) {
+        continue;
+      }
+      rank = parsedRank;
+      
+      const col1 = tabParts[1];
+      const col2 = tabParts[2];
+      const isPos = /^[A-Z]{1,5}(?:\/[A-Z]{1,2})?(?:-\d+)?$/.test(col1.toUpperCase()) || col1.toUpperCase() === 'FLEX' || col1.toUpperCase() === 'K' || col1.toUpperCase() === 'DEF' || col1.toUpperCase() === 'DST';
+      
+      if (isPos && tabParts.length >= 4) {
+        position = col1;
+        name = col2;
+        team = tabParts[3];
+      } else {
+        name = col1;
+        position = col2;
+      }
+    } else {
+      const parts = processedLine.split(/\s+/);
+      
+      if (parts.length < 3) {
+        return { players: [], error: `Malformed line detected. Each line must have rank, name, and position. Problem line: "${line}"` };
+      }
+      
+      const parsedRank = parseInt(parts[0], 10);
+      if (isNaN(parsedRank)) {
+        continue;
+      }
+      rank = parsedRank;
+      
+      const col1 = parts[1];
+      const isPos = /^[A-Z]{1,5}(?:\/[A-Z]{1,2})?(?:-\d+)?$/.test(col1.toUpperCase()) || col1.toUpperCase() === 'FLEX' || col1.toUpperCase() === 'K' || col1.toUpperCase() === 'DEF' || col1.toUpperCase() === 'DST';
+      
+      if (parts.length >= 6 && isPos && (parts[parts.length - 1].includes('.') || !isNaN(parseFloat(parts[parts.length - 1])))) {
+         position = col1;
+         team = parts[parts.length - 3];
+         name = parts.slice(2, parts.length - 3).join(' ');
+      } else {
+        position = parts[parts.length - 1];
+        name = parts.slice(1, -1).join(' ');
+      }
+    }
 
     if (isNaN(rank) || !name || !position) {
       return { players: [], error: `Could not parse line. Check format. Problem line: "${line}"` };
     }
 
-    players.push({ rank, name, position, isHighlighted });
+    players.push({ rank, name, position, team, isHighlighted });
   }
 
   return { players, error: null };
@@ -104,12 +177,14 @@ const App: React.FC = () => {
   });
   
   const [rawText, setRawText] = useState<string>(() => {
-    return localStorage.getItem('customPlayerRankings') || SLEEPER_PLAYER_LIST;
+    return localStorage.getItem('customPlayerRankings') || '';
   });
 
   const [dataSource, setDataSource] = useState<DataSource>(() => {
     return localStorage.getItem('customPlayerRankings') ? 'Custom' : 'Sleeper PPR';
   });
+  
+  const [isLoadingSleeper, setIsLoadingSleeper] = useState(false);
 
   useEffect(() => {
     if (dataSource === 'Custom') {
@@ -124,6 +199,20 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('numTeams', String(numTeams));
   }, [numTeams]);
+
+  // Load default sleeper data on first mount if not custom
+  useEffect(() => {
+    if (dataSource !== 'Custom' && !rawText) {
+      loadSleeperData(dataSource);
+    }
+  }, []);
+
+  const loadSleeperData = async (source: DataSource) => {
+    setIsLoadingSleeper(true);
+    const data = await fetchSleeperAdp(source);
+    setRawText(data);
+    setIsLoadingSleeper(false);
+  };
 
   // Memoize the parsed players and any parsing error
   const { players, error: parseError } = useMemo(() => parsePlayerText(rawText), [rawText]);
@@ -161,19 +250,10 @@ const App: React.FC = () => {
 
   const handleDataSourceChange = (source: DataSource) => {
     setDataSource(source);
-    switch (source) {
-      case 'Sleeper PPR':
-        setRawText(SLEEPER_PLAYER_LIST);
-        break;
-      case 'Yahoo Half':
-        setRawText(YAHOO_PLAYER_LIST);
-        break;
-      case 'ESPN Half':
-        setRawText(ESPN_PLAYER_LIST);
-        break;
-      case 'Custom':
-        handleRawTextChange(localStorage.getItem('customPlayerRankings') || '');
-        break;
+    if (source === 'Custom') {
+      handleRawTextChange(localStorage.getItem('customPlayerRankings') || '');
+    } else {
+      loadSleeperData(source);
     }
   };
   
@@ -238,6 +318,7 @@ const App: React.FC = () => {
             dataSource={dataSource}
             onDataSourceChange={handleDataSourceChange}
             onResetDraft={handleResetDraft}
+            isLoadingSleeper={isLoadingSleeper}
           />
 
           {error && (

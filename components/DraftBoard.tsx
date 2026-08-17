@@ -61,7 +61,7 @@ interface PlayerCardProps {
 const PlayerCard: React.FC<PlayerCardProps> = ({ player, overallPick, round, isPicked, onTogglePicked, isHighlighted, onToggleHighlight, onMarkUntilPicked, isMobile }) => {
   const roundColorClass = round % 2 === 0 ? 'bg-gray-800' : 'bg-gray-800/60';
   const positionColors = getPositionColorClasses(player.position);
-  const pickedClasses = isPicked ? 'opacity-40 filter grayscale' : 'hover:bg-gray-700/80 hover:scale-[1.02]';
+  const pickedClasses = isPicked ? 'opacity-40 filter grayscale hover:bg-transparent' : 'hover:bg-gray-700/80 hover:scale-[1.02]';
   const highlightClasses = isHighlighted ? 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-gray-900' : '';
   const isForwardRound = round % 2 === 0;
   const { firstName, lastName } = splitName(player.name);
@@ -86,25 +86,33 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, overallPick, round, isP
         aria-label={`Pick ${player.name}, Rank ${player.rank}, Position ${player.position}. Click to toggle drafted status. Right-click to toggle highlight. Middle-click to mark all previous players as drafted.`}
     >
       <div>
-        <div className="flex justify-between items-start gap-2">
-          <p className={`font-bold text-sm text-white truncate ${isPicked ? 'line-through' : ''}`} title={player.name}>
+        <div className="flex justify-between items-start gap-1">
+          <p className={`font-bold text-sm text-white truncate min-w-0 ${isPicked ? 'line-through' : ''}`} title={player.name}>
             {firstName}
           </p>
-          <div className="hidden lg:block">
-            <p className={`text-xs font-mono font-bold flex-shrink-0 ${positionColors.text}`}>
+          <div className="hidden lg:block ml-1 flex-shrink-0 text-right">
+            <p className={`text-xs font-mono font-bold ${positionColors.text}`}>
               {player.position}
             </p>
           </div>
         </div>
-        <p className={`font-bold text-sm text-white truncate ${isPicked ? 'line-through' : ''}`} title={player.name}>
+        <p className={`font-bold text-sm text-white truncate min-w-0 ${isPicked ? 'line-through' : ''}`} title={player.name}>
           {lastName}
         </p>
+        <div className="hidden lg:block mt-0.5">
+          {player.team && (
+            <p className="text-[10px] font-mono text-gray-400 uppercase truncate" title={player.team}>
+              {player.team}
+            </p>
+          )}
+        </div>
         <div className="block lg:hidden">
           <p className={`text-xs font-mono font-bold flex-shrink-0 ${positionColors.text}`}>
             {player.position}
           </p>
+          {player.team && <p className="text-[10px] font-mono text-gray-400 mt-0.5 uppercase truncate" title={player.team}>{player.team}</p>}
         </div>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-400 mt-0.5">
           { isMobile ? `(Rk: ${player.rank})` : `(Rank: ${player.rank})` } 
         </p>
       </div>

@@ -3,8 +3,9 @@ export interface Player {
   name: string;
   position: string;
   isHighlighted: boolean;
+  team?: string;
 }
 
 export type DraftBoardData = Record<string, (Player | null)[]>;
 
-export type DataSource = 'Sleeper PPR' | 'Yahoo Half' | 'ESPN Half' | 'Custom';
+export type DataSource = 'Sleeper Standard' | 'Sleeper Half PPR' | 'Sleeper PPR' | 'Sleeper Superflex' | 'Custom';
