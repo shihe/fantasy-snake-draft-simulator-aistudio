@@ -10,6 +10,7 @@ interface ControlsProps {
   onDataSourceChange: (source: DataSource) => void;
   onResetDraft: () => void;
   isLoadingSleeper: boolean;
+  lastUpdated: string | null;
 }
 
 const TEAM_OPTIONS = [8, 10, 12, 14];
@@ -24,6 +25,7 @@ const Controls: React.FC<ControlsProps> = ({
   onDataSourceChange,
   onResetDraft,
   isLoadingSleeper,
+  lastUpdated,
 }) => {
   return (
     <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 p-6 rounded-lg shadow-lg mb-8">
@@ -31,6 +33,7 @@ const Controls: React.FC<ControlsProps> = ({
         <div className="md:col-span-2">
           <label htmlFor="player-rankings" className="block text-sm font-medium text-gray-300 mb-2">
             Player Rankings {isLoadingSleeper && <span className="text-cyan-400 italic ml-2">(Loading from Sleeper...)</span>}
+            {!isLoadingSleeper && lastUpdated && <span className="text-gray-500 italic ml-2 font-normal">(Last updated: {lastUpdated})</span>}
           </label>
           <textarea
             id="player-rankings"

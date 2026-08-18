@@ -6,7 +6,7 @@ interface DraftBoardProps {
   numTeams: number;
   pickedPlayers: Set<number>;
   onTogglePlayerPicked: (rank: number) => void;
-  onTogglePlayerHighlight: (rank: number) => void;
+  onTogglePlayerHighlight: (rank: number, name: string) => void;
   onMarkUntilPicked: (rank: number) => void;
 }
 
@@ -53,7 +53,7 @@ interface PlayerCardProps {
     isPicked: boolean;
     onTogglePicked: (rank: number) => void;
     isHighlighted: boolean;
-    onToggleHighlight: (rank: number) => void;
+    onToggleHighlight: (rank: number, name: string) => void;
     onMarkUntilPicked: (rank: number) => void;
     isMobile: boolean;
 }
@@ -72,7 +72,7 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, overallPick, round, isP
         onClick={() => onTogglePicked(overallPick)}
         onContextMenu={(e) => {
             e.preventDefault();
-            onToggleHighlight(overallPick);
+            onToggleHighlight(player.rank, player.name);
         }}
         onAuxClick={(e) => {
             if (e.button === 1) { // Middle mouse button

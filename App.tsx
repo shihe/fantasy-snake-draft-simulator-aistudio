@@ -185,6 +185,9 @@ const App: React.FC = () => {
   });
   
   const [isLoadingSleeper, setIsLoadingSleeper] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(() => {
+    return localStorage.getItem('lastUpdated') || null;
+  });
 
   useEffect(() => {
     if (dataSource === 'Custom') {
@@ -207,10 +210,19 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const updateLastFetched = () => {
+    const now = new Date().toLocaleString(undefined, { 
+      month: 'short', day: 'numeric' 
+    });
+    setLastUpdated(now);
+    localStorage.setItem('lastUpdated', now);
+  };
+
   const loadSleeperData = async (source: DataSource) => {
     setIsLoadingSleeper(true);
     const data = await fetchSleeperAdp(source);
     setRawText(data);
+    updateLastFetched();
     setIsLoadingSleeper(false);
   };
 
@@ -241,8 +253,11 @@ const App: React.FC = () => {
     return {};
   }, [players, numTeams]);
 
-  const handleRawTextChange = (text: string) => {
+  const handleRawTextChange = (text: string, isUserTyping: boolean = false) => {
     setRawText(text);
+    if (isUserTyping) {
+      updateLastFetched();
+    }
     if (dataSource !== 'Custom') {
       setDataSource('Custom');
     }
@@ -251,7 +266,8 @@ const App: React.FC = () => {
   const handleDataSourceChange = (source: DataSource) => {
     setDataSource(source);
     if (source === 'Custom') {
-      handleRawTextChange(localStorage.getItem('customPlayerRankings') || '');
+      setRawText(localStorage.getItem('customPlayerRankings') || '');
+      // Do not update the date when switching back to Custom, it reflects when they last modified it
     } else {
       loadSleeperData(source);
     }
@@ -269,16 +285,32 @@ const App: React.FC = () => {
     });
   };
   
-  const handleTogglePlayerHighlight = (overallPick: number) => {
+  const handleTogglePlayerHighlight = (playerRank: number, playerName: string) => {
     const lines = rawText.split('\n');
-    let line = lines[overallPick-1];
-    if (line.trim().endsWith('*')) {
-      lines[overallPick-1] = line.trim().slice(0, -1).trim();
-    } else {
-      lines[overallPick-1] = `${line.trim()} *`;
+    let targetIndex = -1;
+    
+    // Find the line that matches this player's rank and name
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+      if (line.trim().toLowerCase().startsWith('adp') || line.trim().toLowerCase().startsWith('rank')) continue;
+      
+      if (line.includes(playerName)) {
+        targetIndex = i;
+        break;
+      }
     }
-    const newRawText = lines.join('\n');
-    handleRawTextChange(newRawText);
+    
+    if (targetIndex !== -1) {
+      let line = lines[targetIndex];
+      if (line.trim().endsWith('*')) {
+        lines[targetIndex] = line.trim().slice(0, -1).trim();
+      } else {
+        lines[targetIndex] = `${line.trim()} *`;
+      }
+      const newRawText = lines.join('\n');
+      handleRawTextChange(newRawText, false); // highlighting doesn't count as a user typing edit for date tracking
+    }
   };
 
   const handleMarkUntilPicked = (overallPick: number) => {
@@ -302,7 +334,7 @@ const App: React.FC = () => {
       <div className="max-w-screen-2xl mx-auto">
         <header className="text-center mb-8">
           <h1 className="text-4xl md:text-5xl font-bold text-cyan-400 tracking-tight">
-            Fantasy Snake Draft Simulator
+            Fantasy Interactive Draft
           </h1>
           <p className="mt-2 text-lg text-gray-400">
             Paste your favorite player rankings and see the draft unfold.
@@ -312,13 +344,14 @@ const App: React.FC = () => {
         <main>
           <Controls
             rawText={rawText}
-            setRawText={handleRawTextChange}
+            setRawText={(text) => handleRawTextChange(text, true)}
             numTeams={numTeams}
             setNumTeams={setNumTeams}
             dataSource={dataSource}
             onDataSourceChange={handleDataSourceChange}
             onResetDraft={handleResetDraft}
             isLoadingSleeper={isLoadingSleeper}
+            lastUpdated={lastUpdated}
           />
 
           {error && (
