@@ -8,4 +8,11 @@ export interface Player {
 
 export type DraftBoardData = Record<string, (Player | null)[]>;
 
-export type DataSource = 'Sleeper Standard' | 'Sleeper Half PPR' | 'Sleeper PPR' | 'Sleeper Superflex' | 'Custom';
+export type DataSource = string;
+
+export interface CustomRanking {
+  id: string;
+  name: string;
+  text: string;
+  lastUpdated: string;
+}

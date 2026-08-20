@@ -57,7 +57,7 @@ const parsePlayerText = (text: string): { players: Player[]; error: string | nul
     let tabParts = processedLine.split('\t').map(s => s.trim());
     
     if (tabParts.length >= 3 && processedLine.includes('\t')) {
-      const parsedRank = parseInt(tabParts[0], 10);
+      const parsedRank = parseFloat(tabParts[0]);
       if (isNaN(parsedRank)) {
         continue;
       }
@@ -82,7 +82,7 @@ const parsePlayerText = (text: string): { players: Player[]; error: string | nul
         return { players: [], error: `Malformed line detected. Each line must have rank, name, and position. Problem line: "${line}"` };
       }
       
-      const parsedRank = parseInt(parts[0], 10);
+      const parsedRank = parseFloat(parts[0]);
       if (isNaN(parsedRank)) {
         continue;
       }
@@ -176,24 +176,45 @@ const App: React.FC = () => {
     return new Set();
   });
   
-  const [rawText, setRawText] = useState<string>(() => {
-    return localStorage.getItem('customPlayerRankings') || '';
+  const [customRankings, setCustomRankings] = useState<CustomRanking[]>(() => {
+    const saved = localStorage.getItem('customRankings');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse customRankings", e);
+      }
+    }
+    // Migration from old single custom rankings
+    const oldCustom = localStorage.getItem('customPlayerRankings');
+    const oldUpdated = localStorage.getItem('lastUpdated');
+    if (oldCustom) {
+      return [{
+        id: 'custom_default',
+        name: 'My Custom List',
+        text: oldCustom,
+        lastUpdated: oldUpdated || new Date().toLocaleString(undefined, { month: 'short', day: 'numeric' })
+      }];
+    }
+    return [];
   });
 
   const [dataSource, setDataSource] = useState<DataSource>(() => {
-    return localStorage.getItem('customPlayerRankings') ? 'Custom' : 'Sleeper PPR';
-  });
-  
-  const [isLoadingSleeper, setIsLoadingSleeper] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<string | null>(() => {
-    return localStorage.getItem('lastUpdated') || null;
+    return localStorage.getItem('dataSource') || (localStorage.getItem('customPlayerRankings') ? 'custom_default' : 'Sleeper PPR');
   });
 
+  const [rawText, setRawText] = useState<string>('');
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  
+  const [isLoadingSleeper, setIsLoadingSleeper] = useState(false);
+
   useEffect(() => {
-    if (dataSource === 'Custom') {
-      localStorage.setItem('customPlayerRankings', rawText);
-    }
-  }, [rawText, dataSource]);
+    localStorage.setItem('customRankings', JSON.stringify(customRankings));
+  }, [customRankings]);
+
+  useEffect(() => {
+    localStorage.setItem('dataSource', dataSource);
+  }, [dataSource]);
   
   useEffect(() => {
     localStorage.setItem('draftedPlayerRanks', JSON.stringify(Array.from(pickedPlayers)));
@@ -203,19 +224,32 @@ const App: React.FC = () => {
     localStorage.setItem('numTeams', String(numTeams));
   }, [numTeams]);
 
-  // Load default sleeper data on first mount if not custom
+  // Load initial data on mount
   useEffect(() => {
-    if (dataSource !== 'Custom' && !rawText) {
+    if (dataSource.startsWith('custom_')) {
+      const custom = customRankings.find(c => c.id === dataSource);
+      if (custom) {
+        setRawText(custom.text);
+        setLastUpdated(custom.lastUpdated);
+      } else if (customRankings.length > 0) {
+        setDataSource(customRankings[0].id);
+        setRawText(customRankings[0].text);
+        setLastUpdated(customRankings[0].lastUpdated);
+      } else {
+        setDataSource('Sleeper PPR');
+        loadSleeperData('Sleeper PPR');
+      }
+    } else {
       loadSleeperData(dataSource);
     }
-  }, []);
+  }, []); // Run once on mount
 
-  const updateLastFetched = () => {
+  const updateLastFetched = (): string => {
     const now = new Date().toLocaleString(undefined, { 
       month: 'short', day: 'numeric' 
     });
     setLastUpdated(now);
-    localStorage.setItem('lastUpdated', now);
+    return now;
   };
 
   const loadSleeperData = async (source: DataSource) => {
@@ -255,22 +289,75 @@ const App: React.FC = () => {
 
   const handleRawTextChange = (text: string, isUserTyping: boolean = false) => {
     setRawText(text);
+    let now = lastUpdated;
     if (isUserTyping) {
-      updateLastFetched();
+      now = updateLastFetched();
     }
-    if (dataSource !== 'Custom') {
-      setDataSource('Custom');
+    
+    if (dataSource.startsWith('custom_')) {
+      setCustomRankings(prev => prev.map(c => 
+        c.id === dataSource ? { ...c, text, lastUpdated: now || c.lastUpdated } : c
+      ));
+    } else if (isUserTyping) {
+      const newId = `custom_${Date.now()}`;
+      const newCustom: CustomRanking = {
+        id: newId,
+        name: `Custom Rankings ${customRankings.length + 1}`,
+        text: text,
+        lastUpdated: now || updateLastFetched()
+      };
+      setCustomRankings(prev => [...prev, newCustom]);
+      setDataSource(newId);
     }
   };
 
   const handleDataSourceChange = (source: DataSource) => {
     setDataSource(source);
-    if (source === 'Custom') {
-      setRawText(localStorage.getItem('customPlayerRankings') || '');
-      // Do not update the date when switching back to Custom, it reflects when they last modified it
+    if (source.startsWith('custom_')) {
+      const custom = customRankings.find(c => c.id === source);
+      if (custom) {
+        setRawText(custom.text);
+        setLastUpdated(custom.lastUpdated);
+      }
     } else {
       loadSleeperData(source);
     }
+  };
+  
+  const handleCreateCustom = () => {
+    const newId = `custom_${Date.now()}`;
+    const newCustom: CustomRanking = {
+      id: newId,
+      name: `Custom Rankings ${customRankings.length + 1}`,
+      text: '',
+      lastUpdated: updateLastFetched()
+    };
+    setCustomRankings(prev => [...prev, newCustom]);
+    setDataSource(newId);
+    setRawText('');
+  };
+
+  const handleRenameCustom = (id: string, newName: string) => {
+    setCustomRankings(prev => prev.map(c => 
+      c.id === id ? { ...c, name: newName } : c
+    ));
+  };
+
+  const handleDeleteCustom = (id: string) => {
+    setCustomRankings(prev => {
+      const filtered = prev.filter(c => c.id !== id);
+      if (dataSource === id) {
+        if (filtered.length > 0) {
+           setDataSource(filtered[0].id);
+           setRawText(filtered[0].text);
+           setLastUpdated(filtered[0].lastUpdated);
+        } else {
+           setDataSource('Sleeper PPR');
+           loadSleeperData('Sleeper PPR');
+        }
+      }
+      return filtered;
+    });
   };
   
   const handleTogglePlayerPicked = (overallPick: number) => {
@@ -316,11 +403,9 @@ const App: React.FC = () => {
   const handleMarkUntilPicked = (overallPick: number) => {
     setPickedPlayers(prevPicked => {
       const newPicked = new Set(prevPicked);
-      players.forEach(p => {
-        if (p.rank <= overallPick) {
-          newPicked.add(p.rank);
-        }
-      });
+      for (let i = 1; i <= overallPick; i++) {
+        newPicked.add(i);
+      }
       return newPicked;
     });
   };
@@ -352,6 +437,10 @@ const App: React.FC = () => {
             onResetDraft={handleResetDraft}
             isLoadingSleeper={isLoadingSleeper}
             lastUpdated={lastUpdated}
+            customRankings={customRankings}
+            onCreateCustom={handleCreateCustom}
+            onRenameCustom={handleRenameCustom}
+            onDeleteCustom={handleDeleteCustom}
           />
 
           {error && (
