@@ -1,8 +1,9 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import type { Player, DraftBoardData, DataSource } from './types';
+import type { Player, DraftBoardData, DataSource, CustomRanking } from './types';
 import Controls from './components/Controls';
 import DraftBoard from './components/DraftBoard';
+import { PositionBoard } from './components/PositionBoard';
 
 const fetchSleeperAdp = async (source: DataSource): Promise<string> => {
   try {
@@ -206,6 +207,8 @@ const App: React.FC = () => {
   const [rawText, setRawText] = useState<string>('');
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   
+  type ViewMode = 'board' | 'position';
+  const [viewMode, setViewMode] = useState<ViewMode>('board');
   const [isLoadingSleeper, setIsLoadingSleeper] = useState(false);
 
   useEffect(() => {
@@ -410,6 +413,24 @@ const App: React.FC = () => {
     });
   };
   
+  const handleMarkPositionUntilPicked = (overallPick: number, positionPrefix: string) => {
+    setPickedPlayers(prevPicked => {
+      const newPicked = new Set(prevPicked);
+      players.forEach((p, index) => {
+         const pickNumber = index + 1;
+         const pPos = p.position.toUpperCase();
+         const isMatch = positionPrefix === 'DEF' 
+             ? (pPos.startsWith('DE') || pPos.startsWith('D/ST')) 
+             : pPos.startsWith(positionPrefix);
+
+         if (isMatch && pickNumber <= overallPick) {
+             newPicked.add(pickNumber);
+         }
+      });
+      return newPicked;
+    });
+  };
+  
   const handleResetDraft = () => {
     setPickedPlayers(new Set());
   };
@@ -450,13 +471,34 @@ const App: React.FC = () => {
             </div>
           )}
 
+          <div className="flex justify-center mb-6">
+            <div className="bg-gray-800 p-1 rounded-lg inline-flex">
+              <button
+                onClick={() => setViewMode('board')}
+                className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${
+                  viewMode === 'board' ? 'bg-cyan-600 text-white shadow' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Draft Board
+              </button>
+              <button
+                onClick={() => setViewMode('position')}
+                className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${
+                  viewMode === 'position' ? 'bg-cyan-600 text-white shadow' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                By Position
+              </button>
+            </div>
+          </div>
+
           <div className="mb-6 p-4 bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-lg flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-sm text-gray-400" role="toolbar" aria-label="Mouse Controls">
             <span className="flex items-center gap-2">
               <strong className="font-semibold text-gray-200">Left Click:</strong> Draft a player
             </span>
             <span className="text-gray-700 hidden sm:inline">|</span>
             <span className="flex items-center gap-2">
-              <strong className="font-semibold text-gray-200">Middle Click:</strong> Draft all players before
+              <strong className="font-semibold text-gray-200">Middle Click:</strong> Draft all players before {viewMode === 'position' ? '(in position)' : ''}
             </span>
             <span className="text-gray-700 hidden sm:inline">|</span>
             <span className="flex items-center gap-2">
@@ -464,14 +506,24 @@ const App: React.FC = () => {
             </span>
           </div>
 
-          <DraftBoard 
-            boardData={draftData} 
-            numTeams={numTeams} 
-            pickedPlayers={pickedPlayers}
-            onTogglePlayerPicked={handleTogglePlayerPicked}
-            onTogglePlayerHighlight={handleTogglePlayerHighlight}
-            onMarkUntilPicked={handleMarkUntilPicked}
-          />
+          {viewMode === 'board' ? (
+            <DraftBoard 
+              boardData={draftData} 
+              numTeams={numTeams} 
+              pickedPlayers={pickedPlayers}
+              onTogglePlayerPicked={handleTogglePlayerPicked}
+              onTogglePlayerHighlight={handleTogglePlayerHighlight}
+              onMarkUntilPicked={handleMarkUntilPicked}
+            />
+          ) : (
+            <PositionBoard
+              players={players}
+              pickedPlayers={pickedPlayers}
+              onTogglePlayerPicked={handleTogglePlayerPicked}
+              onTogglePlayerHighlight={handleTogglePlayerHighlight}
+              onMarkUntilPickedPosition={handleMarkPositionUntilPicked}
+            />
+          )}
         </main>
       </div>
     </div>
